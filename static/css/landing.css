@@ -177,6 +177,62 @@
 .lp-bar-fill.is-travel { background: #4a85d6; }
 .lp-bar-fill.is-bills  { background: #7f6fd0; }
 
+/* Video modal ------------------------------------------------------- */
+
+button.lp-btn {
+    border: none;
+    cursor: pointer;
+}
+
+.lp-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(15, 15, 15, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.lp-modal[hidden] { display: none; }
+
+.lp-modal-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+}
+
+.lp-modal-video {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #000000;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.lp-modal-video iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.lp-modal-close {
+    position: absolute;
+    top: -2.75rem;
+    right: 0;
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 2.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.lp-modal-close:hover { opacity: 0.7; }
+
 @media (max-width: 700px) {
     .lp-hero { padding: 3rem 1rem 3rem; }
     .lp-pill { font-size: 0.9rem; padding: 0.5rem 1.1rem; margin-bottom: 2rem; }
