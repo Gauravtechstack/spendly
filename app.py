@@ -1,11 +1,14 @@
+import os
 import sqlite3
 
-from flask import Flask, redirect, render_template, request, url_for
-from werkzeug.security import generate_password_hash
+from flask import Flask, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from database.db import get_db, init_db, seed_db
 
 app = Flask(__name__)
+# The fallback is for local development only; set SECRET_KEY in any real deployment.
+app.secret_key = os.environ.get("SECRET_KEY", "dev-only-insecure-secret-key")
 
 with app.app_context():
     init_db()
@@ -62,9 +65,38 @@ def register():
     return redirect(url_for("login"))
 
 
-@app.route("/login")
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    return render_template("login.html")
+    if session.get("user_id"):
+        return redirect(url_for("profile"))
+
+    if request.method == "GET":
+        return render_template("login.html")
+
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+
+    def form_error(message):
+        return render_template("login.html", error=message, email=email)
+
+    if not email or not password:
+        return form_error("Email and password are required.")
+
+    conn = get_db()
+    try:
+        user = conn.execute(
+            "SELECT id, name, password_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if user is None or not check_password_hash(user["password_hash"], password):
+        return form_error("Invalid email or password.")
+
+    session.clear()
+    session["user_id"] = user["id"]
+    session["user_name"] = user["name"]
+    return redirect(url_for("profile"))
 
 
 @app.route("/terms")
@@ -77,14 +109,15 @@ def privacy():
     return render_template("privacy.html")
 
 
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("landing"))
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-@app.route("/logout")
-def logout():
-    return "Logout — coming in Step 3"
-
 
 @app.route("/profile")
 def profile():
