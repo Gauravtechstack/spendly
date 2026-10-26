@@ -1,7 +1,7 @@
 # Spec: Registration
 
 ## Overview
-Make the existing registration form functional. Today `GET /register` renders `register.html`, but the form's `POST` returns 405 because the route only accepts GET. This step lets a visitor create a Spendly account: the submitted name, email and password are validated, the password is hashed, a row is inserted into `users`, and the visitor is redirected to the login page. It is the first write path in the app and unblocks login/logout (Step 3), which needs real user accounts to authenticate against. Registration does not start a session; sessions arrive with login.
+Make the existing registration form functional. Today `GET /register` renders `register.html`, but the form's `POST` returns 405 because the route only accepts GET. This step lets a visitor create a Spendly account: the submitted name, email and password are validated, the password is hashed, a row is inserted into `users`, and the visitor is shown with a success message and then redirected to the login page. It is the first write path in the app and unblocks login/logout (Step 3), which needs real user accounts to authenticate against. Registration does not start a session; sessions arrive with login.
 
 ## Depends on
 - Step 01 — Database setup (`users` table with `UNIQUE` email, `get_db()`, `init_db()`).
