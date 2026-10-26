@@ -98,7 +98,7 @@ def test_navbar_reflects_login_state(client):
     assert b"Sign out" not in before
 
     login(client)
-    after = client.get("/").data
+    after = client.get("/profile").data
     assert b"Sign out" in after
     assert b"Get started" not in after
 

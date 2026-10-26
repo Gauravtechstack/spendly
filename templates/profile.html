@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Your profile — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+
+    <section class="profile-card profile-header">
+        <div class="profile-avatar" aria-hidden="true">{{ user.name[:1]|upper }}</div>
+        <div class="profile-identity">
+            <h1 class="profile-name">{{ user.name }}</h1>
+            <p class="profile-email">{{ user.email }}</p>
+            <p class="profile-since">
+                <i data-lucide="calendar"></i>
+                Member since {{ user.created_at|nice_date }}
+            </p>
+        </div>
+    </section>
+
+    <section class="profile-stats">
+        <div class="profile-card profile-stat">
+            <span class="profile-stat-icon"><i data-lucide="wallet"></i></span>
+            <span class="profile-stat-label">Total spent</span>
+            <span class="profile-stat-value">{{ total|rupees }}</span>
+        </div>
+        <div class="profile-card profile-stat">
+            <span class="profile-stat-icon"><i data-lucide="receipt"></i></span>
+            <span class="profile-stat-label">Expenses</span>
+            <span class="profile-stat-value">{{ count }}</span>
+        </div>
+        <div class="profile-card profile-stat">
+            <span class="profile-stat-icon"><i data-lucide="tag"></i></span>
+            <span class="profile-stat-label">Top category</span>
+            <span class="profile-stat-value">{{ top_category or "—" }}</span>
+        </div>
+    </section>
+
+    <section class="profile-card profile-recent">
+        <h2 class="profile-section-title">Recent expenses</h2>
+
+        {% if expenses %}
+        <div class="profile-table-wrap">
+            <table class="profile-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th class="profile-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expense in expenses %}
+                    <tr>
+                        <td>{{ expense.date|nice_date }}</td>
+                        <td>{{ expense.description or "—" }}</td>
+                        <td><span class="profile-pill">{{ expense.category }}</span></td>
+                        <td class="profile-num">{{ expense.amount|rupees }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="profile-empty">
+            <i data-lucide="receipt"></i>
+            <p class="profile-empty-title">No expenses yet</p>
+            <p class="profile-empty-text">Expenses you add will show up here.</p>
+        </div>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

@@ -20,7 +20,8 @@
             </a>
             <div class="nav-links">
                 {% if session.get('user_id') %}
-                <a href="{{ url_for('logout') }}">Sign out</a>
+                <a href="{{ url_for('profile') }}" class="nav-keep">Profile</a>
+                <a href="{{ url_for('logout') }}" class="nav-keep">Sign out</a>
                 {% else %}
                 <a href="{{ url_for('login') }}">Sign in</a>
                 <a href="{{ url_for('register') }}" class="nav-cta">Get started</a>
@@ -44,6 +45,8 @@
     </footer>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+    <script>if (window.lucide) lucide.createIcons();</script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

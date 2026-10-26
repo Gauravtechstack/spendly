@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from datetime import datetime
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -15,17 +16,35 @@ with app.app_context():
     seed_db()
 
 
+@app.template_filter("rupees")
+def rupees(value):
+    return f"₹{value:,.2f}"
+
+
+@app.template_filter("nice_date")
+def nice_date(value):
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").strftime("%d %b %Y")
+    except ValueError:
+        return value
+
+
 # ------------------------------------------------------------------ #
 # Routes                                                              #
 # ------------------------------------------------------------------ #
 
 @app.route("/")
 def landing():
+    if session.get("user_id"):
+        return redirect(url_for("profile"))
     return render_template("landing.html")
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    if session.get("user_id"):
+        return redirect(url_for("profile"))
+
     if request.method == "GET":
         return render_template("register.html")
 
@@ -115,14 +134,52 @@ def logout():
     return redirect(url_for("landing"))
 
 
+@app.route("/profile")
+def profile():
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    try:
+        user = conn.execute(
+            "SELECT name, email, created_at FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if user is None:
+            session.clear()
+            return redirect(url_for("login"))
+
+        summary = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count "
+            "FROM expenses WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        top = conn.execute(
+            "SELECT category FROM expenses WHERE user_id = ? "
+            "GROUP BY category ORDER BY SUM(amount) DESC, category LIMIT 1",
+            (user_id,),
+        ).fetchone()
+        expenses = conn.execute(
+            "SELECT id, date, description, category, amount FROM expenses "
+            "WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 10",
+            (user_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return render_template(
+        "profile.html",
+        user=user,
+        total=summary["total"],
+        count=summary["count"],
+        top_category=top["category"] if top else None,
+        expenses=expenses,
+    )
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-@app.route("/profile")
-def profile():
-    return "Profile page — coming in Step 4"
-
 
 @app.route("/expenses/add")
 def add_expense():
