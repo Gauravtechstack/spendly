@@ -2,6 +2,7 @@ import calendar
 import os
 import sqlite3
 from datetime import date, datetime
+from functools import wraps
 
 from flask import (
     Flask,
@@ -30,6 +31,16 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-only-insecure-secret-key")
 with app.app_context():
     init_db()
     seed_db()
+
+
+def login_required(view):
+    """Redirect logged-out visitors to the login page (session-based auth)."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped
 
 
 @app.template_filter("rupees")
@@ -241,6 +252,12 @@ def profile():
         date_from=date_from or "",
         date_to=date_to or "",
     )
+
+
+@app.route("/analytics")
+@login_required
+def analytics():
+    return render_template("analytics.html")
 
 
 # ------------------------------------------------------------------ #
