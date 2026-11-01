@@ -1,1 +1,7 @@
-// main.js — students will add JavaScript here as features are built
+// Ask for confirmation before submitting any form that has a data-confirm message.
+document.addEventListener("submit", function (event) {
+    var message = event.target.getAttribute("data-confirm");
+    if (message && !window.confirm(message)) {
+        event.preventDefault();
+    }
+});

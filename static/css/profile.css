@@ -322,6 +322,24 @@
 
 .profile-edit:hover { text-decoration: underline; }
 
+.profile-inline-form {
+    display: inline;
+    margin-left: 12px;
+}
+
+.profile-delete {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--danger);
+    cursor: pointer;
+}
+
+.profile-delete:hover { text-decoration: underline; }
+
 .visually-hidden {
     position: absolute;
     width: 1px;

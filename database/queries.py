@@ -52,6 +52,17 @@ def update_expense(user_id, expense_id, amount, category, date, description=None
         return cur.rowcount > 0
 
 
+def remove_expense(user_id, expense_id):
+    """Delete the user's expense. Return True if a row was deleted, else False."""
+    with db_connection() as conn:
+        cur = conn.execute(
+            "DELETE FROM expenses WHERE id = ? AND user_id = ?",
+            (expense_id, user_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def get_summary_stats(user_id, date_from=None, date_to=None):
     """Return {'total', 'count', 'top_category'} for the user's (filtered) expenses."""
     clause, params = _date_clause(date_from, date_to)
