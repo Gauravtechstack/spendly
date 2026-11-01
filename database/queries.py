@@ -30,6 +30,28 @@ def insert_expense(user_id, amount, category, date, description=None):
         return cur.lastrowid
 
 
+def get_expense(user_id, expense_id):
+    """Return the user's expense row, or None if it doesn't exist or isn't theirs."""
+    with db_connection() as conn:
+        return conn.execute(
+            "SELECT id, amount, category, date, description FROM expenses "
+            "WHERE id = ? AND user_id = ?",
+            (expense_id, user_id),
+        ).fetchone()
+
+
+def update_expense(user_id, expense_id, amount, category, date, description=None):
+    """Update the user's expense. Return True if a row was changed, else False."""
+    with db_connection() as conn:
+        cur = conn.execute(
+            "UPDATE expenses SET amount = ?, category = ?, date = ?, description = ? "
+            "WHERE id = ? AND user_id = ?",
+            (amount, category, date, description, expense_id, user_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def get_summary_stats(user_id, date_from=None, date_to=None):
     """Return {'total', 'count', 'top_category'} for the user's (filtered) expenses."""
     clause, params = _date_clause(date_from, date_to)
