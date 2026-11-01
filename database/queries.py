@@ -18,6 +18,18 @@ def _date_clause(date_from, date_to):
     return sql, tuple(params)
 
 
+def insert_expense(user_id, amount, category, date, description=None):
+    """Insert one expense for the user and return its new row id."""
+    with db_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO expenses (user_id, amount, category, date, description) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (user_id, amount, category, date, description),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
 def get_summary_stats(user_id, date_from=None, date_to=None):
     """Return {'total', 'count', 'top_category'} for the user's (filtered) expenses."""
     clause, params = _date_clause(date_from, date_to)

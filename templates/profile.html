@@ -67,7 +67,12 @@
     </section>
 
     <section class="profile-card profile-recent">
-        <h2 class="profile-section-title">Recent expenses</h2>
+        <div class="profile-section-head">
+            <h2 class="profile-section-title">Recent expenses</h2>
+            <a class="profile-add" href="{{ url_for('add_expense') }}">
+                <i data-lucide="plus"></i> Add Expense
+            </a>
+        </div>
 
         {% if expenses %}
         <div class="profile-table-wrap">
