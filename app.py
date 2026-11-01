@@ -1,11 +1,27 @@
+import calendar
 import os
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from database.db import get_db, init_db, seed_db
+from database.db import db_connection, get_db, init_db, seed_db
+from database.queries import (
+    get_category_breakdown,
+    get_recent_transactions,
+    get_summary_stats,
+)
+
+FILTER_ERROR = "filter_error"  # flash category for the profile date filter
 
 app = Flask(__name__)
 # The fallback is for local development only; set SECRET_KEY in any real deployment.
@@ -27,6 +43,66 @@ def nice_date(value):
         return datetime.strptime(str(value)[:10], "%Y-%m-%d").strftime("%d %b %Y")
     except ValueError:
         return value
+
+
+def parse_iso_date(value):
+    """Return value normalised to zero-padded YYYY-MM-DD, or None if invalid."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return None
+
+
+def resolve_date_range(args):
+    """Return the validated (date_from, date_to) from query args, or (None, None).
+
+    A filter needs both bounds: a missing or malformed one means "All Time".
+    If the range is reversed, flash an error and fall back to "All Time".
+    """
+    date_from = parse_iso_date(args.get("date_from"))
+    date_to = parse_iso_date(args.get("date_to"))
+    if not (date_from and date_to):
+        return None, None
+    if date_from > date_to:
+        flash("Start date must be before end date.", FILTER_ERROR)
+        return None, None
+    return date_from, date_to
+
+
+def months_ago(today, months):
+    """Return the date `months` calendar months before today (day clamped to month end)."""
+    # Count months since year 0 so the year wraps correctly across January.
+    index = today.year * 12 + (today.month - 1) - months
+    year, month = divmod(index, 12)
+    month += 1
+    day = min(today.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def build_presets(date_from, date_to, today=None):
+    """Quick-select ranges for the profile filter bar, flagging the active one.
+
+    date_from/date_to are the active range (both None for "All Time").
+    """
+    today = today or date.today()
+    ranges = [
+        ("This Month", today.replace(day=1).isoformat(), today.isoformat()),
+        ("Last 3 Months", months_ago(today, 3).isoformat(), today.isoformat()),
+        ("Last 6 Months", months_ago(today, 6).isoformat(), today.isoformat()),
+        ("All Time", None, None),
+    ]
+    return [
+        {
+            "label": label,
+            # "All Time" has no params, so its link is the clean /profile URL.
+            "params": {"date_from": start, "date_to": end} if start else {},
+            # "All Time" is active when no range is set (None == None).
+            "active": start == date_from and end == date_to,
+        }
+        for label, start, end in ranges
+    ]
 
 
 # ------------------------------------------------------------------ #
@@ -140,40 +216,30 @@ def profile():
     if not user_id:
         return redirect(url_for("login"))
 
-    conn = get_db()
-    try:
+    with db_connection() as conn:
         user = conn.execute(
             "SELECT name, email, created_at FROM users WHERE id = ?", (user_id,)
         ).fetchone()
-        if user is None:
-            session.clear()
-            return redirect(url_for("login"))
+    if user is None:
+        session.clear()
+        return redirect(url_for("login"))
 
-        summary = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count "
-            "FROM expenses WHERE user_id = ?",
-            (user_id,),
-        ).fetchone()
-        top = conn.execute(
-            "SELECT category FROM expenses WHERE user_id = ? "
-            "GROUP BY category ORDER BY SUM(amount) DESC, category LIMIT 1",
-            (user_id,),
-        ).fetchone()
-        expenses = conn.execute(
-            "SELECT id, date, description, category, amount FROM expenses "
-            "WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 10",
-            (user_id,),
-        ).fetchall()
-    finally:
-        conn.close()
+    date_from, date_to = resolve_date_range(request.args)
+    stats = get_summary_stats(user_id, date_from, date_to)
+    presets = build_presets(date_from, date_to)
 
     return render_template(
         "profile.html",
         user=user,
-        total=summary["total"],
-        count=summary["count"],
-        top_category=top["category"] if top else None,
-        expenses=expenses,
+        total=stats["total"],
+        count=stats["count"],
+        top_category=stats["top_category"],
+        expenses=get_recent_transactions(user_id, 10, date_from, date_to),
+        breakdown=get_category_breakdown(user_id, date_from, date_to),
+        presets=presets,
+        custom_active=bool(date_from) and not any(p["active"] for p in presets),
+        date_from=date_from or "",
+        date_to=date_to or "",
     )
 
 
