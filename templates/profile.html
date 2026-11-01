@@ -21,6 +21,33 @@
         </div>
     </section>
 
+    <section class="profile-card profile-filter">
+        {% for message in get_flashed_messages(category_filter=["filter_error"]) %}
+        <p class="profile-filter-error" role="alert">{{ message }}</p>
+        {% endfor %}
+
+        <nav class="profile-presets" aria-label="Quick date ranges">
+            {% for preset in presets %}
+            <a class="profile-chip{{ ' is-active' if preset.active }}"
+               href="{{ url_for('profile', **preset.params) }}"
+               {% if preset.active %}aria-current="page"{% endif %}>{{ preset.label }}</a>
+            {% endfor %}
+        </nav>
+
+        <form class="profile-range{{ ' is-active' if custom_active }}"
+              method="get" action="{{ url_for('profile') }}" aria-label="Custom date range">
+            <label class="profile-range-field">
+                <span>From</span>
+                <input type="date" name="date_from" value="{{ date_from }}">
+            </label>
+            <label class="profile-range-field">
+                <span>To</span>
+                <input type="date" name="date_to" value="{{ date_to }}">
+            </label>
+            <button type="submit" class="profile-apply">Apply</button>
+        </form>
+    </section>
+
     <section class="profile-stats">
         <div class="profile-card profile-stat">
             <span class="profile-stat-icon"><i data-lucide="wallet"></i></span>
@@ -68,8 +95,33 @@
         {% else %}
         <div class="profile-empty">
             <i data-lucide="receipt"></i>
-            <p class="profile-empty-title">No expenses yet</p>
-            <p class="profile-empty-text">Expenses you add will show up here.</p>
+            <p class="profile-empty-title">No expenses {{ 'in this range' if (date_from or date_to) else 'yet' }}</p>
+            <p class="profile-empty-text">
+                {% if date_from %}Try a different date range or choose All Time.{% else %}Expenses you add will show up here.{% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="profile-card profile-breakdown-card">
+        <h2 class="profile-section-title">Spending by category</h2>
+
+        {% if breakdown %}
+        <ul class="profile-breakdown">
+            {% for item in breakdown %}
+            <li class="profile-breakdown-row">
+                <div class="profile-breakdown-head">
+                    <span class="profile-breakdown-name">{{ item.category }}</span>
+                    <span class="profile-breakdown-amount">{{ item.total|rupees }} · {{ item.percent }}%</span>
+                </div>
+                <progress class="profile-bar" max="100" value="{{ item.percent }}">{{ item.percent }}%</progress>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="profile-empty">
+            <i data-lucide="tag"></i>
+            <p class="profile-empty-title">No spending to break down</p>
         </div>
         {% endif %}
     </section>

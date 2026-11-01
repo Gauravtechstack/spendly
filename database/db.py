@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import date
 
 from werkzeug.security import generate_password_hash
@@ -13,6 +14,16 @@ def get_db():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+@contextmanager
+def db_connection():
+    """Yield a get_db() connection and always close it afterwards."""
+    conn = get_db()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def init_db():
