@@ -7,6 +7,7 @@ from functools import wraps
 
 from flask import (
     Flask,
+    abort,
     flash,
     redirect,
     render_template,
@@ -19,9 +20,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from database.db import db_connection, get_db, init_db, seed_db
 from database.queries import (
     get_category_breakdown,
+    get_expense,
     get_recent_transactions,
     get_summary_stats,
     insert_expense,
+    update_expense,
 )
 
 FILTER_ERROR = "filter_error"  # flash category for the profile date filter
@@ -71,6 +74,50 @@ def parse_iso_date(value):
         return datetime.strptime(value, "%Y-%m-%d").date().isoformat()
     except ValueError:
         return None
+
+
+def validate_expense_form(form):
+    """Validate an add/edit expense form.
+
+    Returns (cleaned, error, entered): `entered` is the raw submitted values (for
+    re-populating the form); on success `cleaned` holds the values to store and
+    `error` is None, otherwise `cleaned` is None and `error` is the message.
+    """
+    amount_raw = form.get("amount", "").strip()
+    category = form.get("category", "")
+    date_raw = form.get("date", "").strip()
+    description = form.get("description", "").strip()
+    entered = {
+        "amount": amount_raw,
+        "category": category,
+        "date": date_raw,
+        "description": description,
+    }
+
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        amount = None
+    if amount is None or not math.isfinite(amount) or not 0 < amount <= AMOUNT_MAX:
+        return None, f"Enter an amount between 0.01 and {AMOUNT_MAX:,}.", entered
+
+    if category not in CATEGORIES:
+        return None, "Choose a valid category.", entered
+
+    expense_date = parse_iso_date(date_raw)
+    if expense_date is None:
+        return None, "Enter a valid date.", entered
+
+    if len(description) > DESCRIPTION_MAX:
+        return None, f"Description must be {DESCRIPTION_MAX} characters or fewer.", entered
+
+    cleaned = {
+        "amount": round(amount, 2),
+        "category": category,
+        "date": expense_date,
+        "description": description or None,
+    }
+    return cleaned, None, entered
 
 
 def resolve_date_range(args):
@@ -279,45 +326,17 @@ def add_expense():
     if request.method == "GET":
         return render_form()
 
-    amount_raw = request.form.get("amount", "").strip()
-    category = request.form.get("category", "")
-    date_raw = request.form.get("date", "").strip()
-    description = request.form.get("description", "").strip()
-    entered = {
-        "amount": amount_raw,
-        "category": category,
-        "date": date_raw,
-        "description": description,
-    }
-
-    try:
-        amount = float(amount_raw)
-    except ValueError:
-        amount = None
-    if amount is None or not math.isfinite(amount) or not 0 < amount <= AMOUNT_MAX:
-        return render_form(
-            f"Enter an amount between 0.01 and {AMOUNT_MAX:,}.", **entered
-        )
-
-    if category not in CATEGORIES:
-        return render_form("Choose a valid category.", **entered)
-
-    expense_date = parse_iso_date(date_raw)
-    if expense_date is None:
-        return render_form("Enter a valid date.", **entered)
-
-    if len(description) > DESCRIPTION_MAX:
-        return render_form(
-            f"Description must be {DESCRIPTION_MAX} characters or fewer.", **entered
-        )
+    cleaned, error, entered = validate_expense_form(request.form)
+    if error:
+        return render_form(error, **entered)
 
     try:
         insert_expense(
             session["user_id"],
-            round(amount, 2),
-            category,
-            expense_date,
-            description or None,
+            cleaned["amount"],
+            cleaned["category"],
+            cleaned["date"],
+            cleaned["description"],
         )
     except sqlite3.IntegrityError:
         # The session points at a user row that no longer exists.
@@ -326,14 +345,53 @@ def add_expense():
     return redirect(url_for("profile"))
 
 
+@app.route("/expenses/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_expense(id):
+    user_id = session["user_id"]
+
+    def render_form(error=None, **values):
+        return render_template(
+            "edit_expense.html",
+            categories=CATEGORIES,
+            error=error,
+            expense_id=id,
+            **values,
+        )
+
+    if request.method == "GET":
+        expense = get_expense(user_id, id)
+        if expense is None:
+            abort(404)
+        return render_form(
+            amount=expense["amount"],
+            category=expense["category"],
+            date=expense["date"],
+            description=expense["description"],
+        )
+
+    cleaned, error, entered = validate_expense_form(request.form)
+    if error:
+        # Don't reveal whether the id exists or belongs to someone else.
+        if get_expense(user_id, id) is None:
+            abort(404)
+        return render_form(error, **entered)
+
+    if not update_expense(
+        user_id,
+        id,
+        cleaned["amount"],
+        cleaned["category"],
+        cleaned["date"],
+        cleaned["description"],
+    ):
+        abort(404)
+    return redirect(url_for("profile"))
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-
-@app.route("/expenses/<int:id>/edit")
-def edit_expense(id):
-    return "Edit expense — coming in Step 8"
 
 
 @app.route("/expenses/<int:id>/delete")
