@@ -1,7 +1,9 @@
 import calendar
+import math
 import os
 import sqlite3
 from datetime import date, datetime
+from functools import wraps
 
 from flask import (
     Flask,
@@ -19,17 +21,33 @@ from database.queries import (
     get_category_breakdown,
     get_recent_transactions,
     get_summary_stats,
+    insert_expense,
 )
 
 FILTER_ERROR = "filter_error"  # flash category for the profile date filter
+CATEGORIES = ["Food", "Transport", "Bills", "Health", "Entertainment", "Shopping", "Other"]
+DESCRIPTION_MAX = 200
+AMOUNT_MAX = 10_000_000
 
 app = Flask(__name__)
 # The fallback is for local development only; set SECRET_KEY in any real deployment.
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-insecure-secret-key")
+# Stops browsers sending the session cookie on cross-site POSTs (basic CSRF mitigation).
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 with app.app_context():
     init_db()
     seed_db()
+
+
+def login_required(view):
+    """Redirect logged-out visitors to the login page (session-based auth)."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+    return wrapped
 
 
 @app.template_filter("rupees")
@@ -243,13 +261,74 @@ def profile():
     )
 
 
+@app.route("/analytics")
+@login_required
+def analytics():
+    return render_template("analytics.html")
+
+
+@app.route("/expenses/add", methods=["GET", "POST"])
+@login_required
+def add_expense():
+    def render_form(error=None, **values):
+        values.setdefault("date", date.today().isoformat())
+        return render_template(
+            "add_expense.html", categories=CATEGORIES, error=error, **values
+        )
+
+    if request.method == "GET":
+        return render_form()
+
+    amount_raw = request.form.get("amount", "").strip()
+    category = request.form.get("category", "")
+    date_raw = request.form.get("date", "").strip()
+    description = request.form.get("description", "").strip()
+    entered = {
+        "amount": amount_raw,
+        "category": category,
+        "date": date_raw,
+        "description": description,
+    }
+
+    try:
+        amount = float(amount_raw)
+    except ValueError:
+        amount = None
+    if amount is None or not math.isfinite(amount) or not 0 < amount <= AMOUNT_MAX:
+        return render_form(
+            f"Enter an amount between 0.01 and {AMOUNT_MAX:,}.", **entered
+        )
+
+    if category not in CATEGORIES:
+        return render_form("Choose a valid category.", **entered)
+
+    expense_date = parse_iso_date(date_raw)
+    if expense_date is None:
+        return render_form("Enter a valid date.", **entered)
+
+    if len(description) > DESCRIPTION_MAX:
+        return render_form(
+            f"Description must be {DESCRIPTION_MAX} characters or fewer.", **entered
+        )
+
+    try:
+        insert_expense(
+            session["user_id"],
+            round(amount, 2),
+            category,
+            expense_date,
+            description or None,
+        )
+    except sqlite3.IntegrityError:
+        # The session points at a user row that no longer exists.
+        session.clear()
+        return redirect(url_for("login"))
+    return redirect(url_for("profile"))
+
+
 # ------------------------------------------------------------------ #
 # Placeholder routes — students will implement these                  #
 # ------------------------------------------------------------------ #
-
-@app.route("/expenses/add")
-def add_expense():
-    return "Add expense — coming in Step 7"
 
 
 @app.route("/expenses/<int:id>/edit")
